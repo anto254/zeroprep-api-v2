@@ -1,5 +1,7 @@
 const Chat = require("../models/Chat");
 const sendSms = require("../utils/sms");
+const unirest = require("unirest");
+
 
 const addMessage = async (req, res) => {
   const { message, clientId, senderId } = req.body;
@@ -7,8 +9,9 @@ const addMessage = async (req, res) => {
   if (!message || !senderId || !clientId)
     return res.status(400).json({ message: "All fields are required" });
 
-    if(clientId === senderId) {
-      sendSms.sendAnSms("254768702540", "You have a new message " )
+  if (clientId === senderId) {
+    // sendSms.sendAnSms("254768702540", "You have a new message " )
+    sendTelegramNotification("You have a new message");
   }
 
   try {
@@ -26,9 +29,9 @@ const addMessage = async (req, res) => {
         ],
       });
     } else {
-        if(clientId === senderId) {
-            chat.adminUnread += 1;
-        }
+      if (clientId === senderId) {
+        chat.adminUnread += 1;
+      }
       chat.messages.push({
         senderId: senderId,
         message: message,
@@ -95,41 +98,59 @@ const getAllChats = async (req, res) => {
 };
 
 const countAdminUnread = async (req, res) => {
-    try {
-            let totalAdminUnread = 0;
-      const supports = await Chat.find({ adminUnread: { $gt: 0 } }).select('adminUnread').lean().exec(); // Get only the support documents where adminUnread is greater than zero
-      
-  
-      
-      if(supports.length < 1) return res.status(200).json({ totalAdminUnread });
-  
-      for (let support of supports) {
-        totalAdminUnread += support.adminUnread; // Add up the adminUnread of each document
-      }
-      
-  
-      res.status(200).json({ totalAdminUnread }); // Return the total adminUnread
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'Something went wrong' });
+  try {
+    let totalAdminUnread = 0;
+    const supports = await Chat.find({ adminUnread: { $gt: 0 } })
+      .select("adminUnread")
+      .lean()
+      .exec(); // Get only the support documents where adminUnread is greater than zero
+
+    if (supports.length < 1) return res.status(200).json({ totalAdminUnread });
+
+    for (let support of supports) {
+      totalAdminUnread += support.adminUnread; // Add up the adminUnread of each document
     }
+
+    res.status(200).json({ totalAdminUnread }); // Return the total adminUnread
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: "Something went wrong" });
   }
+};
 
-  const deleteChat = async(req, res) => {
-    const {chatId} = req.params;
-    if(chatId) res.status(400).json({ message: 'Chat id is required' });
+const deleteChat = async (req, res) => {
+  const { chatId } = req.params;
+  if (chatId) res.status(400).json({ message: "Chat id is required" });
 
-    try {
-      await Chat.findByIdAndDelete(chatId);
-      res.status(200).json({message: "Chat deleted"});
-      
-    } catch (error) {
-      console.log(error)
-      
+  try {
+    await Chat.findByIdAndDelete(chatId);
+    res.status(200).json({ message: "Chat deleted" });
+  } catch (error) {
+    console.log(error);
+  }
+};
+
+const sendTelegramNotification = async (message) => {
+  const url = `https://api.telegram.org/bot${process.env?.TELEGRAMBOT_ACCESS_TOKEN}/sendMessage`;
+
+  try {
+    const response = await unirest.post(url).type("json").send({
+      chat_id: process.env?.TELEGRAM_CHATID,
+      text: message,
+    });
+
+    if (response.body.ok) {
+      console.log("Message sent successfully:", response.body.result.text);
+      return;
+    } else {
+      console.error("Failed to send message:", response.body.description);
+      return;
     }
+  } catch (error) {
+    console.error("Error sending message:", error);
+    return;
   }
-
-
+};
 
 module.exports = {
   addMessage,
@@ -137,5 +158,5 @@ module.exports = {
   getAllChats,
   getChatByClientIdAdmin,
   countAdminUnread,
-  deleteChat
+  deleteChat,
 };
