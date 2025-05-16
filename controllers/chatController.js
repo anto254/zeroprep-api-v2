@@ -10,7 +10,7 @@ const addMessage = async (req, res) => {
     return res.status(400).json({ message: "All fields are required" });
 
   if (clientId === senderId) {
-    // sendSms.sendAnSms("254768702540", "You have a new message " )
+    sendSms.sendAnSms("254116064832", "You have a new message " )
     sendTelegramNotification("You have a new message");
   }
 
